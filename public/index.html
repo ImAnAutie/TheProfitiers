@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>The Profitiers</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <meta charset="utf-8">
+  <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+      #map {
+        height: 100%;
+      }
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #description {
+        font-family: Roboto;
+        font-size: 15px;
+        font-weight: 300;
+      }
+
+      #infowindow-content .title {
+        font-weight: bold;
+      }
+
+      #infowindow-content {
+        display: none;
+      }
+
+      #map #infowindow-content {
+        display: inline;
+      }
+
+      .pac-card {
+        margin: 10px 10px 0 0;
+        border-radius: 2px 0 0 2px;
+        box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        outline: none;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        background-color: #fff;
+        font-family: Roboto;
+      }
+
+      #pac-container {
+        padding-bottom: 12px;
+        margin-right: 12px;
+      }
+
+      .pac-controls {
+        display: inline-block;
+        padding: 5px 11px;
+      }
+
+      .pac-controls label {
+        font-family: Roboto;
+        font-size: 13px;
+        font-weight: 300;
+      }
+
+      #pac-input {
+        background-color: #fff;
+        font-family: Roboto;
+        font-size: 15px;
+        font-weight: 300;
+        margin-left: 12px;
+        padding: 0 11px 0 13px;
+        text-overflow: ellipsis;
+        width: 400px;
+      }
+
+      #pac-input:focus {
+        border-color: #4d90fe;
+      }
+
+      #title {
+        color: #fff;
+        background-color: #4d90fe;
+        font-size: 25px;
+        font-weight: 500;
+        padding: 6px 12px;
+      }
+      #target {
+        width: 345px;
+      }
+    </style>
+  </head>
+  <body>
+    <input id="pac-input" class="controls" type="text" placeholder="Search Box">
+    <div id="map"></div>
+    <script>
+      var map;
+
+      function ButtonControl(controlDiv, map,title,buttonTitle,id) {
+        // Set CSS for the control border.
+        var controlUI = document.createElement('div');
+        controlUI.style.backgroundColor = '#fff';
+        controlUI.style.border = '2px solid #fff';
+        controlUI.style.borderRadius = '3px';
+        controlUI.style.boxShadow = '0 2px 6px rgba(0,0,0,.3)';
+        controlUI.style.cursor = 'pointer';
+        controlUI.style.marginBottom = '22px';
+        controlUI.style.textAlign = 'center';
+        controlUI.title = title;
+        controlUI.id = `${id}`;
+        
+        controlDiv.appendChild(controlUI);
+
+        // Set CSS for the control interior.
+        var controlText = document.createElement('div');
+        controlText.style.color = 'rgb(25,25,25)';
+        controlText.style.fontFamily = 'Roboto,Arial,sans-serif';
+        controlText.style.fontSize = '16px';
+        controlText.style.lineHeight = '38px';
+        controlText.style.paddingLeft = '5px';
+        controlText.style.paddingRight = '5px';
+        controlText.innerHTML = buttonTitle;
+        controlText.id = `${id}_interior`;
+        controlUI.appendChild(controlText);
+
+        controlUI.addEventListener('click', function(event) {
+          targetId=event.target.id;
+          console.log(`Button ${targetId} clicked`);
+
+          switch (targetId) {
+            case "SubmitBusiness_interior":
+              alert("To submit a business that is profiteering or is pricing ethically find it on the map then click on it");
+              break;
+          };
+        });
+      }
+
+
+      function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+          //defaulting to Alton Towers Resort-I really need a fix!
+          center: {lat: 52.98767455055949, lng: -1.8899475383182929},
+          zoom: 16,
+          mapTypeId: google.maps.MapTypeId.HYBRID,
+          labels: true
+        });
+
+        google.maps.event.addListener(map, "click", function (event) {
+          var latitude = event.latLng.lat();
+          var longitude = event.latLng.lng();
+          var geohash = Geohash.encode(latitude, longitude);
+          console.log(`Map clicked: ${latitude}, ${longitude} geohash: ${geohash}`);
+
+          position={lat: latitude,lng: longitude};
+          map.setCenter(position);
+          var contentString = '<div id="content">'+
+            '<div id="siteNotice">'+
+            '</div>'+
+            '<h1 id="firstHeading" class="firstHeading">Uluru</h1>'+
+            '<div id="bodyContent">'+
+            '<p><b>Uluru</b>, also referred to as <b>Ayers Rock</b>, is a large ' +
+            'Heritage Site.</p>'+
+            '<p>Attribution: Uluru, <a href="https://en.wikipedia.org/w/index.php?title=Uluru&oldid=297882194">'+
+            'https://en.wikipedia.org/w/index.php?title=Uluru</a> '+
+            '(last visited June 22, 2009).</p>'+
+            '</div>'+
+         '</div>';
+
+         var infowindow = new google.maps.InfoWindow({
+          content: contentString,
+          position: position
+        });
+        infowindow.open(map);
+      });
+
+
+        var centerControlDiv = document.createElement('div');
+        var centerControl = new ButtonControl(centerControlDiv, map, "Click to submit a business","Submit a business","SubmitBusiness");
+        centerControlDiv.index = 1;
+        map.controls[google.maps.ControlPosition.TOP_CENTER].push(centerControlDiv);
+
+
+        // Create the search box and link it to the UI element.
+        var input = document.getElementById('pac-input');
+        var searchBox = new google.maps.places.SearchBox(input);
+        map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+        // Bias the SearchBox results towards current map's viewport.
+        map.addListener('bounds_changed', function() {
+          searchBox.setBounds(map.getBounds());
+        });
+
+        var markers = [];
+        // Listen for the event fired when the user selects a prediction and retrieve
+        // more details for that place.
+        searchBox.addListener('places_changed', function() {
+          var places = searchBox.getPlaces();
+
+          if (places.length == 0) {
+            return;
+          }
+
+          // Clear out the old markers.
+          markers.forEach(function(marker) {
+            marker.setMap(null);
+          });
+          markers = [];
+
+          // For each place, get the icon, name and location.
+          var bounds = new google.maps.LatLngBounds();
+          places.forEach(function(place) {
+            if (!place.geometry) {
+              console.log("Returned place contains no geometry");
+              return;
+            }
+            var icon = {
+              url: place.icon,
+              size: new google.maps.Size(71, 71),
+              origin: new google.maps.Point(0, 0),
+              anchor: new google.maps.Point(17, 34),
+              scaledSize: new google.maps.Size(25, 25)
+            };
+
+            // Create a marker for each place.
+            markers.push(new google.maps.Marker({
+              map: map,
+              icon: icon,
+              title: place.name,
+              position: place.geometry.location
+            }));
+
+            if (place.geometry.viewport) {
+              // Only geocodes have viewport.
+              bounds.union(place.geometry.viewport);
+            } else {
+              bounds.extend(place.geometry.location);
+            }
+          });
+          map.fitBounds(bounds);
+        });
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(function(position) {
+            console.log(position);
+            coordinates=position.coords;
+            map.setCenter({lat: coordinates.latitude,lng: coordinates.longitude})
+          });
+        } else {
+          console.log("Geolocation is not supported by this browser.");
+        }
+      }
+    </script>
+
+    <script src="/js/lib/latlon-geohash.js"></script>
+    <script src="/js/lib/template7.min.js"></script>
+    <script src="/js/lib/jquery.min.js"></script>
+
+    <script src="/__/firebase/7.12.0/firebase-app.js"></script>
+    <script src="/__/firebase/7.12.0/firebase-analytics.js"></script>
+    <script src="/__/firebase/7.12.0/firebase-firestore.js"></script>
+    <script src="/__/firebase/7.12.0/firebase-auth.js"></script>
+
+   <!-- Initialize Firebase -->
+   <script src="/__/firebase/init.js"></script>
+   <script>
+    var db = firebase.firestore();    
+   </script>
+   <script>
+businessMarkers={};
+db.collection("businesses").onSnapshot(function(businesses) {
+    businesses.forEach(function(businessDoc) {
+        console.log(businessDoc);
+        if (businessMarkers[businessDoc.id]) {
+            console.log("Existing marker for business");
+            businessMarkers[businessDoc.id].setTitle(businessDoc.data().name);
+            businessMarkers[businessDoc.id].setPosition({lat: businessDoc.data().coordinates.latitude, lng: businessDoc.data().coordinates.longitude});
+
+            if (businessDoc.data().score>=75) {
+                businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|00ff00")
+            } else {
+                if (businessDoc.data().score<50) {
+businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ff0000")
+                } else {
+businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ffff00")
+                };
+            };
+        } else {
+            console.log("No existing marker for business");
+
+            if (businessDoc.data().score>=75) {
+              iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|00ff00"
+            } else {
+                if (businessDoc.data().score<50) {
+                  iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ff0000"
+                } else {
+                  iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ffff00"
+                };
+            };
+
+            businessMarkers[businessDoc.id]=new google.maps.Marker({
+                map: map,
+                position: {lat: businessDoc.data().coordinates.latitude, lng: businessDoc.data().coordinates.longitude},
+                title: businessDoc.data().name,
+                icon: iconUrl,
+                id: businessDoc.id
+            });
+
+            businessMarkers[businessDoc.id].addListener('click',function(event) {
+              console.log(event);
+              geohash=Geohash.encode(event.latLng.lat(), event.latLng.lng(), 9);
+              console.log(`Looking up geohash: ${geohash}`);
+              db.collection("businesses").where("geohash","==",geohash).get().then(function(businessDocs) {
+                if (businessDocs.empty) {
+                  return alert(`Something went wrong, geohash: ${geohash} not found`);
+                } else {
+                  businessDoc=businessDocs.docs[0];
+                  console.log(businessDoc);
+  
+                  db.collection("businesses").doc(businessDoc.id).collection("reviews").orderBy("timestamp","desc").get().then(function(reviewDocs) {
+                    reviews=[];
+                    reviewDocs.forEach(function(reviewDoc) {
+                       review=reviewDoc.data();
+                       review.id=reviewDoc.id;
+                       reviews.push(review);
+                    });
+
+                    data={
+                      businessDoc: businessDoc,
+                      user: firebase.auth().currentUser,
+                      totalReviews: reviewDocs.docs.length,
+                      latestReview: businessDoc.data().latestReview,
+                      reviews: reviews
+                    };
+
+                    templateExistingBusiness=Template7.compile($('#templateExistingBusiness').html());
+                    var contentString = templateExistingBusiness(data);
+
+                    var infowindow = new google.maps.InfoWindow({
+                      content: contentString
+                    });
+                    infowindow.open(map,businessMarkers[businessDoc.id]);
+                  }).catch(function(error) {  
+                    console.log("An error occured fetching reviews");
+                    console.log(error);
+                    alert("An error occured fetching reviews");
+                    //TODO bugsnag this
+                  });
+                };
+              });
+
+
+            });
+        };
+    });
+});
+
+   </script>
+
+    <!-- You need to replace this Google maps JS api key if you clone this project -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8ZrGhz2EZKHblbBKTTELs3SLGCcmSRgU&callback=initMap&libraries=places" async defer></script>
+
+    <script id="templateExistingBusiness" type="text/template7">
+      <div id="content">
+        <div id="siteNotice"></div>
+        <h1 id="firstHeading" class="firstHeading">{{businessDoc.data().name}}</h1>
+          <div id="bodyContent">
+            <p><b>Total reviews:</b> {{totalReviews}}</p>
+            <p><b>Latest review:</b> {{latestReview}}</p>
+            <button class="btn btn-success" onclick="existingBusinessSubmitReview('{{businessDoc.id}}');">Submit review</button>
+            <div id="" style="overflow-y:scroll; overflow-x:hidden; height:200px;">
+              {{#each reviews}}
+                <p><b>{{this.rating}}:</b> {{this.comment}}</p>
+                <hr />
+              {{/each}}
+            </div>
+          </div>
+      </div>
+    </script>
+
+  </body>
+</html>
