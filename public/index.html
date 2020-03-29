@@ -87,13 +87,19 @@
         width: 345px;
       }
     </style>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
   </head>
   <body>
     <input id="pac-input" class="controls" type="text" placeholder="Search Box">
     <div id="map"></div>
     <script>
-      var map;
+      var map, existingInfoWindow;
 
+      function signin() {
+        var provider = new firebase.auth.FacebookAuthProvider();
+        firebase.auth().signInWithRedirect(provider);
+      };
       function ButtonControl(controlDiv, map,title,buttonTitle,id) {
         // Set CSS for the control border.
         var controlUI = document.createElement('div');
@@ -104,6 +110,7 @@
         controlUI.style.cursor = 'pointer';
         controlUI.style.marginBottom = '22px';
         controlUI.style.textAlign = 'center';
+        controlUI.style.marginLeft = '45px';
         controlUI.title = title;
         controlUI.id = `${id}`;
         
@@ -126,8 +133,9 @@
           console.log(`Button ${targetId} clicked`);
 
           switch (targetId) {
-            case "SubmitBusiness_interior":
-              alert("To submit a business that is profiteering or is pricing ethically find it on the map then click on it");
+            case "signoutButton":
+            case "signoutButton_interior":
+              firebase.auth().signOut()
               break;
           };
         });
@@ -143,6 +151,45 @@
           labels: true
         });
 
+        var ClickEventHandler = function(map, origin) {
+        this.origin = origin;
+        this.map = map;
+        this.directionsService = new google.maps.DirectionsService;
+        this.directionsRenderer = new google.maps.DirectionsRenderer;
+        this.directionsRenderer.setMap(map);
+        this.placesService = new google.maps.places.PlacesService(map);
+        this.infowindow = new google.maps.InfoWindow;
+        this.infowindowContent = document.getElementById('infowindow-content');
+        this.infowindow.setContent(this.infowindowContent);
+
+        // Listen for clicks on the map.
+        this.map.addListener('click', this.handleClick.bind(this));
+      };
+
+      ClickEventHandler.prototype.handleClick = function(event) {
+        console.log('You clicked on: ' + event.latLng);
+        // If the event has a placeId, use it.
+        if (event.placeId) {
+          console.log('You clicked on place:' + event.placeId);
+
+
+          console.log(event);
+
+          // Calling e.stop() on the event prevents the default info window from
+          // showing.
+          // If you call stop here when there is no placeId you will prevent some
+          // other map click event handlers from receiving the event.
+          event.stop();
+        }
+      };
+
+
+        var clickHandler = new ClickEventHandler(map, origin);
+
+
+
+
+
         google.maps.event.addListener(map, "click", function (event) {
           var latitude = event.latLng.lat();
           var longitude = event.latLng.lng();
@@ -151,29 +198,29 @@
 
           position={lat: latitude,lng: longitude};
           map.setCenter(position);
-          var contentString = '<div id="content">'+
-            '<div id="siteNotice">'+
-            '</div>'+
-            '<h1 id="firstHeading" class="firstHeading">Uluru</h1>'+
-            '<div id="bodyContent">'+
-            '<p><b>Uluru</b>, also referred to as <b>Ayers Rock</b>, is a large ' +
-            'Heritage Site.</p>'+
-            '<p>Attribution: Uluru, <a href="https://en.wikipedia.org/w/index.php?title=Uluru&oldid=297882194">'+
-            'https://en.wikipedia.org/w/index.php?title=Uluru</a> '+
-            '(last visited June 22, 2009).</p>'+
-            '</div>'+
-         '</div>';
 
-         var infowindow = new google.maps.InfoWindow({
-          content: contentString,
-          position: position
-        });
-        infowindow.open(map);
+          if (typeof(existingInfoWindow)!="undefined") {
+            existingInfoWindow.close();
+          };
+
+          data={
+            user: firebase.auth().currentUser
+          };
+          templateExistingBusiness=Template7.compile($('#templateNewBusiness').html());
+          var contentString = templateExistingBusiness(data);
+
+          existingInfoWindow = new google.maps.InfoWindow({
+            content: contentString,
+            position: position
+          });
+          existingInfoWindow.open(map);
       });
 
 
         var centerControlDiv = document.createElement('div');
-        var centerControl = new ButtonControl(centerControlDiv, map, "Click to submit a business","Submit a business","SubmitBusiness");
+        centerControlDiv.style.paddingLeft="200px"
+
+        var centerControl = new ButtonControl(centerControlDiv, map, "Sign out","Sign out","signoutButton");
         centerControlDiv.index = 1;
         map.controls[google.maps.ControlPosition.TOP_CENTER].push(centerControlDiv);
 
@@ -182,6 +229,47 @@
         var input = document.getElementById('pac-input');
         var searchBox = new google.maps.places.SearchBox(input);
         map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+        setTimeout(function() {
+          $('#signoutButton').parent().height($('#pac-input').height());
+          $('#signoutButton').children().css('line-height',`${$('#pac-input').height()}px`);
+        }, 125);
+
+        var centerControlImg = document.createElement('img');
+        centerControlImg.src="/img/continueWithFacebook.png"
+        centerControlImg.id="facebookConnectButton"
+        centerControlImg.index = 2;
+        centerControlImg.height="25px"
+        centerControlImg.style.paddingLeft="25px"
+        centerControlImg.style.top="25px"
+        centerControlImg.onclick=function() {
+          signin();
+        };
+
+//        map.controls[google.maps.ControlPosition.TOP_CENTER].push(centerControlImg);
+        setInterval(function() {
+//          $('#facebookConnectButton').height('25px')
+          if (firebase.auth().currentUser) {
+//            $('#facebookConnectButton').hide();
+            $('#signoutButton').parent().show()
+          } else {
+//            $('#facebookConnectButton').show();
+            $('#signoutButton').parent().hide()
+          };
+        }, 125);
+
+        firebase.auth().getRedirectResult().then(function(result) {
+          console.log("now signed in");
+        }).catch(function(error) {
+          console.log("Error signing in");
+          console.log(error);
+
+          //TODO bugsnag this
+          alert("Error signing in");
+      });
+
+
+        
 
         // Bias the SearchBox results towards current map's viewport.
         map.addListener('bounds_changed', function() {
@@ -252,11 +340,16 @@
     <script src="/js/lib/latlon-geohash.js"></script>
     <script src="/js/lib/template7.min.js"></script>
     <script src="/js/lib/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment-with-locales.min.js" integrity="sha256-AdQN98MVZs44Eq2yTwtoKufhnU+uZ7v2kXnD5vqzZVo=" crossorigin="anonymous"></script>
 
     <script src="/__/firebase/7.12.0/firebase-app.js"></script>
     <script src="/__/firebase/7.12.0/firebase-analytics.js"></script>
     <script src="/__/firebase/7.12.0/firebase-firestore.js"></script>
     <script src="/__/firebase/7.12.0/firebase-auth.js"></script>
+    <script src="/__/firebase/7.12.0/firebase-functions.js"></script>
 
    <!-- Initialize Firebase -->
    <script src="/__/firebase/init.js"></script>
@@ -265,6 +358,7 @@
    </script>
    <script>
 businessMarkers={};
+businessInfoWindows={};
 db.collection("businesses").onSnapshot(function(businesses) {
     businesses.forEach(function(businessDoc) {
         console.log(businessDoc);
@@ -273,26 +367,34 @@ db.collection("businesses").onSnapshot(function(businesses) {
             businessMarkers[businessDoc.id].setTitle(businessDoc.data().name);
             businessMarkers[businessDoc.id].setPosition({lat: businessDoc.data().coordinates.latitude, lng: businessDoc.data().coordinates.longitude});
 
-            if (businessDoc.data().score>=75) {
-                businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|00ff00")
+            if (businessDoc.data().numRatings) {
+              if (businessDoc.data().score>=75) {
+                  businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|00ff00")
+              } else {
+                  if (businessDoc.data().score<50) {
+                    businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ff0000")
+                  } else {
+                    businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ffff00")
+                 };
+              };
             } else {
-                if (businessDoc.data().score<50) {
-businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ff0000")
-                } else {
-businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ffff00")
-                };
+              businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=?|7a7a7a")
             };
         } else {
             console.log("No existing marker for business");
 
-            if (businessDoc.data().score>=75) {
-              iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|00ff00"
+            if (businessDoc.data().numRatings) {
+              if (businessDoc.data().score>=75) {
+                iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|00ff00";
+              } else {
+                  if (businessDoc.data().score<50) {
+                    iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ff0000";
+                  } else {
+                    iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ffff00";
+                 };
+              };
             } else {
-                if (businessDoc.data().score<50) {
-                  iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ff0000"
-                } else {
-                  iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ffff00"
-                };
+              iconUrl="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=?|7a7a7a";
             };
 
             businessMarkers[businessDoc.id]=new google.maps.Marker({
@@ -303,40 +405,59 @@ businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chs
                 id: businessDoc.id
             });
 
-            businessMarkers[businessDoc.id].addListener('click',function(event) {
+            businessMarkers[businessDoc.id].addListener('click',function(event,businessId=businessDoc.id) {
               console.log(event);
-              geohash=Geohash.encode(event.latLng.lat(), event.latLng.lng(), 9);
-              console.log(`Looking up geohash: ${geohash}`);
-              db.collection("businesses").where("geohash","==",geohash).get().then(function(businessDocs) {
-                if (businessDocs.empty) {
-                  return alert(`Something went wrong, geohash: ${geohash} not found`);
+              console.log(businessId);
+              map.setCenter({lat: event.latLng.lat(), lng: event.latLng.lng()})
+
+              db.collection("businesses").doc(businessId).get().then(function(businessDoc) {
+                console.log(businessDoc);
+                if (!businessDoc.exists) {
+                  return alert(`Something went wrong, business: ${businessId} not found`);
                 } else {
-                  businessDoc=businessDocs.docs[0];
-                  console.log(businessDoc);
   
                   db.collection("businesses").doc(businessDoc.id).collection("reviews").orderBy("timestamp","desc").get().then(function(reviewDocs) {
                     reviews=[];
                     reviewDocs.forEach(function(reviewDoc) {
                        review=reviewDoc.data();
                        review.id=reviewDoc.id;
+                       review.timestampHuman=moment(review.timestamp.toDate()).format("dddd, MMMM Do YYYY, h:mm:ss a");
+
+                      if (review.rating>=75) {
+                        review.icon="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|00ff00";
+                      } else {
+                        if (businessDoc.data().score<50) {
+                          review.icon="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ff0000";
+                        } else {
+                          review.icon="https://chart.apis.google.com/chart?chst=d_map_pin_letter&chld=|ffff00";
+                        };
+                    };
+
+
                        reviews.push(review);
                     });
+                    if (businessDoc.data().numRatings>0) {
+                      hasRatings=true;
+                    } else {
+                      hasRatings=false;
+                    };
 
                     data={
                       businessDoc: businessDoc,
                       user: firebase.auth().currentUser,
                       totalReviews: reviewDocs.docs.length,
                       latestReview: businessDoc.data().latestReview,
-                      reviews: reviews
+                      reviews: reviews,
+                      hasRatings: hasRatings
                     };
 
                     templateExistingBusiness=Template7.compile($('#templateExistingBusiness').html());
                     var contentString = templateExistingBusiness(data);
 
-                    var infowindow = new google.maps.InfoWindow({
+                    businessInfoWindows[businessDoc.id] = new google.maps.InfoWindow({
                       content: contentString
                     });
-                    infowindow.open(map,businessMarkers[businessDoc.id]);
+                    businessInfoWindows[businessDoc.id].open(map,businessMarkers[businessDoc.id]);
                   }).catch(function(error) {  
                     console.log("An error occured fetching reviews");
                     console.log(error);
@@ -354,6 +475,104 @@ businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chs
 
    </script>
 
+  <script>
+    function existingBusinessSubmitReview(businessId) {
+      console.log(`Loading review submission for existing business: ${businessId}`);
+      if (businessInfoWindows[businessId]) {
+        businessInfoWindows[businessId].close();
+      };
+      db.collection("businesses").doc(businessId).get().then(function(businessDoc) {
+        console.log(businessDoc);
+        if (!businessDoc.exists) {
+          console.log("Could not find business, doc does not exist");
+          alert("Business does not exist");
+          return;
+        };
+
+        console.log(businessDoc.data());
+
+        data={
+          businessDoc: businessDoc,
+          user: firebase.auth().currentUser,
+        };
+
+        templateExistingBusiness=Template7.compile($('#templateExistingBusinessNewReview').html());
+        var contentString = templateExistingBusiness(data);
+
+        businessInfoWindows[businessDoc.id] = new google.maps.InfoWindow({
+          content: contentString
+        });
+        businessInfoWindows[businessDoc.id].open(map,businessMarkers[businessDoc.id]);
+      }).catch(function(error) {
+        console.log("Error looking up business");
+        console.log(error);
+        //TODO bugsnag this
+        alert("Error loading review submission form");
+      });
+    };
+  </script>
+
+  <script>
+    function existingBusinessSubmitReviewSubmit(businessId) {
+      comment=$('#existingBusinessNewReviewComment').val();
+
+      if ($('#existingBusinessNewReviewYayOrNay-0').is(':checked')) {
+        rating=100;
+      } else {
+        rating=0;
+      };
+
+      firebase.functions().httpsCallable('existingBusinessSubmitReview')({
+        businessId: businessId,
+        rating: rating,
+        comment: comment
+      }).then(function(result) {
+        console.log(result);
+        if (result.data.status) {
+          console.log("Review submitted");
+          businessInfoWindows[businessId].close()
+          alert("Review submitted");
+        } else {
+          console.log("Server error submitting review");
+          alert(result.data.reasonUser);
+        };
+      }).catch(function(error) {
+        console.log("Error submitting review");
+        console.log(error);
+        //TODO Bugsnag this
+        alert("Error submitting review");
+      });
+    };
+
+
+
+function newBusinessSubmit() {
+      newBusinessName=$('#newBusinessName').val();
+      lat=existingInfoWindow.getPosition().lat();
+      lng=existingInfoWindow.getPosition().lng();
+      firebase.functions().httpsCallable('newBusinessSubmit')({
+        name: newBusinessName,
+        lat: lat,
+        lng: lng
+      }).then(function(result) {
+        console.log(result);
+        if (result.data.status) {
+          console.log("New business submitted");
+          existingInfoWindow.close();
+          existingBusinessSubmitReview(result.data.businessId);
+        } else {
+          console.log("Server error submitting business");
+          alert(result.data.reasonUser);
+        };
+      }).catch(function(error) {
+        console.log("Error submitting business");
+        console.log(error);
+        //TODO Bugsnag this
+        alert("Error submitting business");
+      });
+    };
+  </script>
+
     <!-- You need to replace this Google maps JS api key if you clone this project -->
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8ZrGhz2EZKHblbBKTTELs3SLGCcmSRgU&callback=initMap&libraries=places" async defer></script>
 
@@ -362,15 +581,114 @@ businessMarkers[businessDoc.id].setIcon("https://chart.apis.google.com/chart?chs
         <div id="siteNotice"></div>
         <h1 id="firstHeading" class="firstHeading">{{businessDoc.data().name}}</h1>
           <div id="bodyContent">
-            <p><b>Total reviews:</b> {{totalReviews}}</p>
-            <p><b>Latest review:</b> {{latestReview}}</p>
+            {{#if hasRatings}}
+              <p><b>Total reviews:</b> {{totalReviews}}</p>
+              <p><b>Latest review:</b> {{latestReview}}</p>
+            {{/if}}
             <button class="btn btn-success" onclick="existingBusinessSubmitReview('{{businessDoc.id}}');">Submit review</button>
-            <div id="" style="overflow-y:scroll; overflow-x:hidden; height:200px;">
-              {{#each reviews}}
-                <p><b>{{this.rating}}:</b> {{this.comment}}</p>
-                <hr />
-              {{/each}}
-            </div>
+            {{#if hasRatings}}
+              <div id="" style="overflow-y:scroll; overflow-x:hidden; height:200px;">
+                {{#each reviews}}
+                  <p><img src="{{this.icon}}" /><b>{{this.rating}}%:</b> {{this.timestampHuman}}-  {{this.comment}}</p>
+                  <hr />
+                {{/each}}
+              </div>
+            {{/if}}
+          </div>
+      </div>
+    </script>
+
+
+
+    <script id="templateExistingBusinessNewReview" type="text/template7">
+      <div id="content">
+        <div id="siteNotice"></div>
+        <h1 id="firstHeading" class="firstHeading">{{businessDoc.data().name}}</h1>
+          <div id="bodyContent">
+            {{#unless user}}
+              <p>You need to be signed in to submit a review</p>
+              <p>Your name will NOT be shown publicly</p>
+              <img src="/img/continueWithFacebook.png" id="facebookConnectButton" style="height: 25px;" onclick="signin();">
+            {{else}}
+
+
+<fieldset>
+
+<!-- Form Name -->
+<legend>Submit a review</legend>
+
+<!-- Textarea -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="existingBusinessNewReviewComment">Comment</label>
+  <div class="col-md-12">
+    <textarea class="form-control" id="existingBusinessNewReviewComment" name="existingBusinessNewReviewComment"></textarea>
+  </div>
+</div>
+
+<!-- Multiple Radios (inline) -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="existingBusinessNewReviewYayOrNay">Yay or nay</label>
+  <div class="col-md-4"> 
+    <label class="radio-inline" for="existingBusinessNewReviewYayOrNay-0">
+      <input type="radio" name="existingBusinessNewReviewYayOrNay" id="existingBusinessNewReviewYayOrNay-0" value="100">
+      This business is doing the right thing
+    </label> 
+    <label class="radio-inline" for="existingBusinessNewReviewYayOrNay-1">
+      <input type="radio" name="existingBusinessNewReviewYayOrNay" id="existingBusinessNewReviewYayOrNay-1" value="0"  checked="checked">
+      This business is profiteering or otherwise bad
+    </label>
+  </div>
+</div>
+
+<!-- Button -->
+<div class="form-group">
+  <div class="col-md-12">
+    <button id="existingBusinessNewReviewSubmitButton" name="existingBusinessNewReviewSubmitButton" class="btn btn-success" style="width:100%" onclick="existingBusinessSubmitReviewSubmit('{{businessDoc.id}}')">Submit review</button>
+  </div>
+</div>
+
+</fieldset>
+
+            {{/unless}}
+          </div>
+      </div>
+    </script>
+
+
+
+    <script id="templateNewBusiness" type="text/template7">
+      <div id="content">
+        <div id="siteNotice"></div>
+        <h1 id="firstHeading" class="firstHeading">Submit business</h1>
+          <div id="bodyContent">
+            {{#unless user}}
+              <p>You need to be signed in to submit a review</p>
+              <p>Your name will NOT be shown publicly</p>
+              <img src="/img/continueWithFacebook.png" id="facebookConnectButton" style="height: 25px;" onclick="signin();">
+            {{else}}
+<fieldset>
+
+<!-- Form Name -->
+<legend>Submit a business</legend>
+
+<!-- Textarea -->
+<div class="form-group">
+  <label class="col-md-4 control-label" for="newBusinessName">Name</label>
+  <div class="col-md-12">
+    <textarea class="form-control" id="newBusinessName" name="newBusinessName"></textarea>
+  </div>
+</div>
+
+<!-- Button -->
+<div class="form-group">
+  <div class="col-md-12">
+    <button id="newBusinessSubmitButton" name="newBusinessSubmitButton" class="btn btn-success" style="width:100%" onclick="newBusinessSubmit()">Continue</button>
+  </div>
+</div>
+
+</fieldset>
+
+            {{/unless}}
           </div>
       </div>
     </script>
